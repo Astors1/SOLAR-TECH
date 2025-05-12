@@ -1,0 +1,145 @@
+ #include <ESP32Servo.h>
+   #include <PID_v1.h>
+
++ #include <ESP32Servo.h>: Esta línea incluye la librería necesaria para controlar servos con tu ESP32. Te permite definir los pines a los que están conectados los servos y controlar su movimiento.
+
++ #include <PID_v1.h>: Aquí incluyes la librería que implementa el algoritmo PID (Proporcional-Integral-Derivativo). Este algoritmo es fundamental para que tu sistema siga la luz de manera suave y precisa, corrigiendo errores de forma inteligente.
+
+   
+    // Pines de LDR
+    #define LDR_IZQ  33
+    #define LDR_DER  32
+    #define LDR_ARR  35
+    #define LDR_ABJ  34
+
+    // Pines de servo
+    #define SERVO_X_PIN  18
+    #define SERVO_Y_PIN  19
+
++ Aquí defines los pines digitales de tu ESP32 a los que has conectado los LDRs (sensores de luz) y los servos. Usar #define hace que tu código sea más legible, ya que en lugar de usar números directamente, usas nombres descriptivos como LDR_IZQ.
+
+
+    // Servo y PID
+    Servo servoX, servoY;
+
+    double SetpointX = 0, InputX, OutputX;
+    double SetpointY = 0, InputY, OutputY;
+
+    double Kp = 0.8, Ki = 0.1, Kd = 0.3;
+    PID pidX(&InputX, &OutputX, &SetpointX, Kp, Ki, Kd, DIRECT);
+    PID pidY(&InputY, &OutputY, &SetpointY, Kp, Ki, Kd, DIRECT);
+
+    int anguloX = 90;
+    int anguloY = 90;
+
++Servo servoX, servoY;: Aquí creas dos objetos de la clase Servo. Estos objetos te permitirán controlar los dos servos que presumiblemente mueven tu sistema en los ejes X (horizontal) e Y (vertical).
+
++double SetpointX = 0, InputX, OutputX; y double SetpointY = 0, InputY, OutputY;: Estas son las variables necesarias para el control PID.
+
++SetpointX y SetpointY: Representan el valor "deseado" para la diferencia de luz entre los LDRs correspondientes. En este caso, se inicializan a 0, lo que significa que el objetivo es que la luz sea igual en los dos LDRs de cada eje.
+
++InputX e InputY: Son las variables donde almacenarás la diferencia en las lecturas de luz de los LDRs. Esta diferencia es la "entrada" al algoritmo PID.
+
++OutputX y OutputY: Aquí se guardará la "salida" del algoritmo PID. Este valor representa la corrección que debe aplicarse a la posición del servo para reducir la diferencia de luz.
+
++double Kp = 0.8, Ki = 0.1, Kd = 0.3;: Estos son los parámetros de sintonización del PID.
+
++Kp (Ganancia Proporcional): Determina cuánto reacciona el sistema al error actual. Un valor mayor hace que la respuesta sea más rápida pero puede causar oscilaciones.
+
++Ki (Ganancia Integral): Ayuda a eliminar el error constante a lo largo del tiempo. Un valor mayor puede hacer que el sistema sea más preciso pero también más lento en reaccionar.
+
++Kd (Ganancia Derivativa): Intenta predecir el error futuro basándose en la tasa de cambio del error actual. Ayuda a amortiguar las oscilaciones y mejorar la estabilidad.
+
++La elección de estos valores es crucial para el rendimiento de tu sistema PID y a menudo requiere experimentación y ajuste.
+
++PID pidX(&InputX, &OutputX, &SetpointX, Kp, Ki, Kd, DIRECT); y PID pidY(&InputY, &OutputY, &SetpointY, Kp, Ki, Kd, DIRECT);: Aquí creas dos objetos de la clase PID, uno para cada eje del servo. Les pasas las direcciones de memoria de las variables Input, Output, Setpoint, y los parámetros de sintonización. 
+
++DIRECT indica que la salida del PID se suma directamente al valor base del servo.
+
++int anguloX = 90; y int anguloY = 90;: Estas variables almacenan el ángulo actual al que se deben mover los servos. Se inicializan en 90 grados, que suele ser la posición central de muchos servos.
+
+
+    void setup() {
+    Serial.begin(115200);
+
+    // Configurar servos
+    servoX.setPeriodHertz(50);
+    servoX.attach(SERVO_X_PIN, 500, 2400);
+
+    servoY.setPeriodHertz(50);
+    servoY.attach(SERVO_Y_PIN, 500, 2400);
+
+    // Iniciar PID
+    pidX.SetMode(AUTOMATIC);
+    pidY.SetMode(AUTOMATIC);
+    }
+
++Serial.begin(115200);: Inicializa la comunicación serial a una velocidad de 115200 baudios. Esto te permite enviar y recibir datos desde tu ESP32 a través del puerto serial (por ejemplo, para depurar o monitorear los valores de los sensores y los servos).
+
+   +Configuración de Servos:
+
++servoX.setPeriodHertz(50); y servoY.setPeriodHertz(50);: Establecen la frecuencia de la señal PWM para los servos en 50 Hz, que es un estándar común para servos.
+
++servoX.attach(SERVO_X_PIN, 500, 2400); y servoY.attach(SERVO_Y_PIN, 500, 2400);: Asocian los objetos servoX e servoY con los pines definidos (SERVO_X_PIN y SERVO_Y_PIN). Los valores 500 y 2400 son los pulsos mínimos y máximos en microsegundos que generalmente corresponden a los ángulos 0 y 180 grados del servo. Estos valores pueden variar según el servo que estés utilizando, así que consulta la hoja de datos de tu servo.
+
+   +Inicio del PID:
+
++pidX.SetMode(AUTOMATIC); y pidY.SetMode(AUTOMATIC);: Activan el modo automático para los controladores PID. En este modo, el algoritmo PID calculará la salida basándose en la entrada y el punto de ajuste.
+
+
+    void loop() {
+    int luzIzq = analogRead(LDR_IZQ);
+    int luzDer = analogRead(LDR_DER);
+    int luzArr = analogRead(LDR_ARR);
+    int luzAbj = analogRead(LDR_ABJ);
+
+    // Corrección: invertir las diferencias para que giren en la dirección correcta
+    InputX = luzDer - luzIzq;
+    InputY = luzAbj - luzArr;
+
+    pidX.Compute();
+    pidY.Compute();
+
+    anguloX = constrain(90 + OutputX, 0, 180);
+    anguloY = constrain(90 + OutputY, 0, 180);
+
+    servoX.write(anguloX);
+    servoY.write(anguloY);
+
+    Serial.print("Luz Izq: "); Serial.print(luzIzq);
+    Serial.print(" - Luz Der: "); Serial.print(luzDer);
+    Serial.print(" | Luz Arr: "); Serial.print(luzArr);
+    Serial.print(" - Luz Abj: "); Serial.println(luzAbj);
+
+    Serial.print("Servo X: "); Serial.print(anguloX);
+    Serial.print(" | Servo Y: "); Serial.println(anguloY);
+
+    delay(250);
+    }
+
+  +Lectura de los LDRs:
+
++int luzIzq = analogRead(LDR_IZQ); ... int luzAbj = analogRead(LDR_ABJ);: Estas líneas leen los valores analógicos de los cuatro LDRs conectados a los pines correspondientes. Los LDRs varían su resistencia según la cantidad de luz que reciben, y analogRead() convierte esta resistencia en un valor digital (típicamente entre 0 y 4095 para el ESP32).
+
+  +Cálculo de la Entrada al PID:
+
++InputX = luzDer - luzIzq;: Para el movimiento horizontal (eje X), la entrada al PID es la diferencia entre la luz que detecta el LDR derecho y el LDR izquierdo. La corrección que has añadido aquí es importante: si la luz es mayor a la derecha, la diferencia será positiva, y el PID intentará mover el servo en esa dirección.
+
++InputY = luzAbj - luzArr;: De manera similar, para el movimiento vertical (eje Y), la entrada es la diferencia entre la luz del LDR inferior y el LDR superior. Si la luz es mayor abajo, la diferencia será positiva, y el PID moverá el servo en esa dirección.
+  +Cálculo de la Salida del PID:
+
++pidX.Compute(); y pidY.Compute();: Estas líneas ejecutan el algoritmo PID para cada eje. Basándose en el Input (la diferencia de luz), el Setpoint (que es 0, buscando igual luz), y los parámetros de sintonización (Kp, Ki, Kd), el PID calcula el valor de corrección (OutputX y OutputY) necesario para minimizar el error.
+
+   +Cálculo del Ángulo del Servo:
++anguloX = constrain(90 + OutputX, 0, 180);: El ángulo del servo X se calcula sumando la salida del PID (OutputX) a la posición central inicial (90 grados). constrain() asegura que el ángulo resultante esté siempre dentro del rango válido para el servo (0 a 180 grados).
+
++anguloY = constrain(90 + OutputY, 0, 180);: Se hace lo mismo para el servo Y.
+
+   +Movimiento de los Servos:
+
++servoX.write(anguloX); y servoY.write(anguloY);: Estas líneas envían la señal PWM a los servos para que se muevan al ángulo calculado.
+Impresión de Datos por Serial:
+
++Las líneas Serial.print() te permiten ver en el monitor serial los valores de luz de cada LDR y los ángulos a los que se están moviendo los servos. Esto es muy útil para depurar y entender cómo está funcionando tu sistema.
+
++delay(250);: Introduce una pausa de 250 milisegundos entre cada ciclo del bucle loop(). Esto evita que el microcontrolador se ejecute demasiado rápido y da tiempo a los sensores y a los servos para reaccionar.

@@ -9,7 +9,8 @@ Servo servoY;
 
 // Ángulos iniciales
 int anguloX = 90;
-int anguloY = 90void setup() {
+int anguloY = 90;
+void setup() {
   Serial.begin(115200);
 
   // Configurar servos
